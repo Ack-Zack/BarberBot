@@ -1,0 +1,14 @@
+fastapi==0.141.1
+uvicorn[standard]
+SQLAlchemy==2.0.52
+asyncpg
+alembic
+pydantic==2.13.5
+pydantic-settings
+PyJWT
+aiogram==3.31.0
+redis
+celery
+httpx
+pytest
+pytest-asyncio
