@@ -1,0 +1,22 @@
+# systemd: BarberSaaS Telegram-бот (aiogram, polling)
+# Куда положить: /etc/systemd/system/barbersaas-bot.service
+# Запускать только если боту назначен реальный TELEGRAM_BOT_TOKEN в .env
+
+[Unit]
+Description=BarberSaaS Telegram bot
+After=network.target barbersaas-api.service
+
+[Service]
+Type=simple
+User=barbersaas
+Group=barbersaas
+WorkingDirectory=/opt/barbersaas/backend
+ExecStart=/opt/barbersaas/.venv/bin/python -m app.bot.main
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+# systemd: BarberSaaS API
+# Куда положить: /etc/systemd/system/barbersaas-api.service
+
+[Unit]
+Description=BarberSaaS API (FastAPI + uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=barbersaas
+Group=barbersaas
+WorkingDirectory=/opt/barbersaas/backend
+ExecStart=/opt/barbersaas/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+
+# .env читается самим приложением из /opt/barbersaas/.env (app/core/config.py)
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
