@@ -1,11 +1,16 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# .env ищем в корне проекта (независимо от того, откуда запущен процесс),
+# а локальный ./env имеет приоритет, если вдруг создан рядом с CWD.
+_ROOT_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(_ROOT_ENV_FILE, ".env"), extra="ignore")
 
     app_name: str = Field(default="BarberSaaS API", alias="APP_NAME")
     environment: str = Field(default="development", alias="ENVIRONMENT")

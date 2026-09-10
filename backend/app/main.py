@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.config import settings
-from app.core.database import Base, engine, ensure_postgres_constraints
+from app.core.database import Base, engine
 from app.seed import seed_development_data
 
 app = FastAPI(title=settings.app_name, version="0.2.0")
@@ -29,7 +29,6 @@ async def startup() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await ensure_postgres_constraints()
     await seed_development_data()
 
 

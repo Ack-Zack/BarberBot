@@ -35,16 +35,16 @@ BarberSaaS — многопользовательский SaaS для барбе
 ### Backend
 
 - FastAPI;
-- PostgreSQL 18;
+- SQLite через aiosqlite (для локальной разработки; PostgreSQL остаётся целевым для production);
 - SQLAlchemy 2;
 - Alembic;
 - Pydantic 2;
-- Redis + Celery;
+- Redis + Celery (опционально: только для Telegram-напоминаний);
 - aiogram;
 - Telegram `initData` HMAC-проверка;
 - JWT access tokens;
 - модульный монолит: API-модули отделены по доменам, а бизнес-правила концентрируются на backend; при росте проекта service/repository-слои можно выделить без изменения публичного API;
-- PostgreSQL `EXCLUDE` constraint не допускает пересечение активных записей одного барбера;
+- пересечение активных записей одного барбера блокируется на уровне backend (в SQLite `EXCLUDE`-констрейнт недоступен; при переходе на PostgreSQL верните его по схеме из git-истории);
 - сервер дополнительно проверяет рабочие часы и блокировки;
 - роли проверяются на backend.
 
@@ -64,20 +64,34 @@ barbersaas/
 │   ├── alembic.ini
 │   └── requirements.txt
 ├── frontend/
-│   ├── src/
-│   ├── Dockerfile
-│   └── Dockerfile.prod
-├── docker-compose.yml
-├── docker-compose.prod.yml
+│   └── src/
+├── start-backend.bat
+├── start-frontend.bat
 └── .env.example
 ```
 
-## Локальный запуск
+## Локальный запуск (без Docker)
+
+Требования: Python 3.14+, Node.js 24+. База данных — SQLite, ничего ставить не нужно.
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up --build
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r backend\requirements.txt
+cd backend
+..\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
 ```
+
+Во втором терминале:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Или просто запустите `start-backend.bat` и `start-frontend.bat` из корня проекта.
 
 После запуска:
 
@@ -98,10 +112,11 @@ http://localhost:5173/?mode=visitor&startapp=b_demo-barbershop
 
 Dev-auth доступен только при `ENVIRONMENT=development` и `ALLOW_DEV_AUTH=true`.
 
-Бот запускается отдельным профилем:
+Бот запускается отдельным процессом (нужен реальный `TELEGRAM_BOT_TOKEN`):
 
 ```powershell
-docker compose --profile telegram up --build
+cd backend
+python -m app.bot.main
 ```
 
 ## Telegram setup
@@ -119,8 +134,7 @@ Backend никогда не принимает `telegram_id` из frontend ка�
 
 ## Production
 
-Перед первым запуском замени placeholder-секреты и укажи HTTPS-домен Mini App. Production frontend использует nginx как reverse proxy для `/api/*`.
-
+Для production рекомендуется PostgreSQL (миграция с SQLite: `alembic` + замена `DATABASE_URL` на `postgresql+asyncpg://...` и возврат `EXCLUDE`-констрейнта). Перед деплоем замени placeholder-секреты и укажи HTTPS-домен Mini App.
 
 Создайте production `.env` и обязательно задайте реальные секреты:
 
@@ -131,22 +145,7 @@ TELEGRAM_BOT_TOKEN=<реальный токен>
 TELEGRAM_BOT_USERNAME=<username>
 TELEGRAM_WEBAPP_URL=https://your-domain.example
 CORS_ORIGINS=https://your-domain.example
-POSTGRES_PASSWORD=<сложный пароль>
 ```
-
-Запуск:
-
-```powershell
-docker compose -f docker-compose.prod.yml up --build -d
-```
-
-Production compose сначала выполняет:
-
-```text
-alembic upgrade head
-```
-
-затем запускает API, worker, bot и nginx.
 
 ## Важные бизнес-правила
 
@@ -158,7 +157,7 @@ alembic upgrade head
 - прошлое время нельзя забронировать;
 - запись не может выйти за рабочие часы;
 - заблокированное время нельзя занять;
-- активные записи одного мастера не могут пересекаться на уровне PostgreSQL;
+- активные записи одного мастера не могут пересекаться (backend-проверка; в PostgreSQL дополнительно защищается `EXCLUDE`-констрейнтом);
 - отменённые/завершённые записи не занимают слот;
 - цена и длительность сохраняются в записи как исторический snapshot.
 
@@ -167,10 +166,11 @@ alembic upgrade head
 После изменения схемы:
 
 ```powershell
-docker compose run --rm backend alembic upgrade head
+cd backend
+alembic upgrade head
 ```
 
-В development схема создаётся автоматически, но для production используется только Alembic.
+В development схема создаётся автоматически при старте API, но для production используется только Alembic.
 
 ## Что не включено в этот MVP
 
@@ -178,4 +178,4 @@ docker compose run --rm backend alembic upgrade head
 
 ## Проверки в этой среде
 
-Python-источники прошли `compileall`. Полный `docker compose` runtime-тест выполнить здесь нельзя, потому что Docker в среде отсутствует. Полный npm install также не завершился из-за таймаута доступа к registry, поэтому frontend production build здесь не выдаётся за проверенный.
+Python-источники проходят `compileall` и pytest. Запуск проверен локально без Docker: API на SQLite (aiosqlite), frontend через `npm run dev`.

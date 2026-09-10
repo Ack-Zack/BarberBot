@@ -54,6 +54,15 @@ async def ensure_slot_is_valid(
     if not fits_working_hours:
         raise HTTPException(status_code=422, detail="Appointment is outside the barber's working hours")
 
+    overlap_appointment = await db.scalar(select(Appointment.id).where(
+        Appointment.barber_member_id == barber_id,
+        Appointment.status.in_(ACTIVE_STATUSES),
+        Appointment.starts_at < ends_at,
+        Appointment.ends_at > starts_at,
+    ))
+    if overlap_appointment:
+        raise HTTPException(status_code=409, detail="This time is already booked")
+
     overlap_block = await db.scalar(select(ScheduleBlock.id).where(
         ScheduleBlock.barber_member_id == barber_id,
         ScheduleBlock.starts_at < ends_at,

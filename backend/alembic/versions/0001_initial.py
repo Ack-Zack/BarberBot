@@ -1,4 +1,4 @@
-"""initial BarberSaaS schema"""
+"""initial BarberSaaS schema (SQLite-compatible)"""
 from alembic import op
 import sqlalchemy as sa
 
@@ -9,7 +9,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -151,19 +150,8 @@ def upgrade() -> None:
     op.create_index("ix_invitations_token_hash", "invitations", ["token_hash"])
     op.create_index("ix_invitations_expires_at", "invitations", ["expires_at"])
 
-    op.execute("""
-        ALTER TABLE appointments
-        ADD CONSTRAINT appointments_no_overlap
-        EXCLUDE USING gist (
-            barber_member_id WITH =,
-            tstzrange(starts_at, ends_at, '[)') WITH &&
-        )
-        WHERE (status IN ('pending', 'confirmed'));
-    """)
-
 
 def downgrade() -> None:
-    op.drop_constraint("appointments_no_overlap", "appointments", type_="exclude")
     op.drop_table("invitations")
     op.drop_table("appointments")
     op.drop_table("clients")

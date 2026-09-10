@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
-from sqlalchemy import text
+
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
@@ -10,30 +11,19 @@ class Base(DeclarativeBase):
 
 
 engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragma(dbapi_connection: object, connection_record: object) -> None:
+    if settings.database_url.startswith("sqlite"):
+        cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
-
-
-async def ensure_postgres_constraints() -> None:
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
-        await conn.execute(text("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint WHERE conname = 'appointments_no_overlap'
-            ) THEN
-                ALTER TABLE appointments
-                ADD CONSTRAINT appointments_no_overlap
-                EXCLUDE USING gist (
-                    barber_member_id WITH =,
-                    tstzrange(starts_at, ends_at, '[)') WITH &&
-                )
-                WHERE (status IN ('pending', 'confirmed'));
-            END IF;
-        END $$;
-        """))
